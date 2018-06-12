@@ -4,7 +4,7 @@ import torch.nn.init as init
 from torch.autograd import Variable
 import numpy as np
 from pdb import set_trace as st
-from util import util
+from ..util import util as util
 from skimage import color
 from IPython import embed
 from . import pretrained_networks as pn
