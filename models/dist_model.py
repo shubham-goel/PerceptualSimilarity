@@ -2,10 +2,11 @@ import numpy as np
 import torch
 from torch import nn
 import os
+import os.path as osp
 from collections import OrderedDict
 from torch.autograd import Variable
 import itertools
-import util.util as util
+from ..util import util as util
 from .base_model import BaseModel
 from . import networks_basic as networks
 from scipy.ndimage import zoom
@@ -56,7 +57,8 @@ class DistModel(BaseModel):
             if not use_gpu:
                 kw['map_location'] = 'cpu'
             if(model_path is None):
-                model_path = './weights/%s.pth'%net
+                base_dir = osp.dirname(osp.dirname(osp.abspath(__file__)))
+                model_path = osp.join(base_dir, 'weights/%s.pth' % net))
             self.net.load_state_dict(torch.load(model_path, **kw))
 
         elif(self.model=='net'): # pretrained network
