@@ -58,7 +58,7 @@ class DistModel(BaseModel):
                 kw['map_location'] = 'cpu'
             if(model_path is None):
                 base_dir = osp.dirname(osp.dirname(osp.abspath(__file__)))
-                model_path = osp.join(base_dir, 'weights/%s.pth' % net))
+                model_path = osp.join(base_dir, 'weights/%s.pth' % net)
             self.net.load_state_dict(torch.load(model_path, **kw))
 
         elif(self.model=='net'): # pretrained network
