@@ -1,25 +1,36 @@
+
+from __future__ import absolute_import
+
+import sys
+sys.path.append('..')
+sys.path.append('.')
 import numpy as np
 import torch
 from torch import nn
 import os
-import os.path as osp
 from collections import OrderedDict
 from torch.autograd import Variable
 import itertools
-from ..util import util as util
 from .base_model import BaseModel
-from . import networks_basic as networks
 from scipy.ndimage import zoom
 import fractions
 import functools
 import skimage.transform
 from IPython import embed
 
+from . import networks_basic as networks
+# from PerceptualSimilarity.util import util
+from ..util import util
+
 class DistModel(BaseModel):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.initialize(**kwargs)
+
     def name(self):
         return self.model_name
 
-    def initialize(self, model='net-lin', net='alex', model_path=None, colorspace='Lab', use_gpu=True, printNet=False, spatial=False, spatial_shape=None, spatial_order=1, spatial_factor=None, is_train=False, lr=.0001, beta1=0.5):
+    def initialize(self, model='net-lin', net='alex', pnet_rand=False, pnet_tune=False, model_path=None, colorspace='Lab', use_gpu=True, printNet=False, spatial=False, spatial_shape=None, spatial_order=1, spatial_factor=None, is_train=False, lr=.0001, beta1=0.5, version='0.1'):
         '''
         INPUTS
             model - ['net-lin'] for linearly calibrated network
@@ -38,11 +49,12 @@ class DistModel(BaseModel):
             is_train - bool - [True] for training mode
             lr - float - initial learning rate
             beta1 - float - initial momentum term for adam
+            version - 0.1 for latest, 0.0 was original
         '''
         BaseModel.initialize(self, use_gpu=use_gpu)
 
         self.model = model
-        self.net = net
+        # self.net = net
         self.use_gpu = use_gpu
         self.is_train = is_train
         self.spatial = spatial
@@ -52,28 +64,33 @@ class DistModel(BaseModel):
 
         self.model_name = '%s [%s]'%(model,net)
         if(self.model == 'net-lin'): # pretrained net + linear layer
-            self.net = networks.PNetLin(use_gpu=use_gpu,pnet_type=net,use_dropout=True,spatial=spatial)
+            net = networks.PNetLin(use_gpu=use_gpu,pnet_rand=pnet_rand, pnet_tune=pnet_tune, pnet_type=net,use_dropout=True,spatial=spatial,version=version)
             kw = {}
             if not use_gpu:
                 kw['map_location'] = 'cpu'
             if(model_path is None):
-                base_dir = osp.dirname(osp.dirname(osp.abspath(__file__)))
-                model_path = osp.join(base_dir, 'weights/%s.pth' % net)
-            self.net.load_state_dict(torch.load(model_path, **kw))
+                import inspect
+                # model_path = './PerceptualSimilarity/weights/v%s/%s.pth'%(version,net)
+                model_path = os.path.abspath(os.path.join(inspect.getfile(self.initialize), '..', '..', 'weights/v%s/%s.pth'%(version,net)))
+
+            if(not is_train):
+                print('Loading model from: %s'%model_path)
+                net.load_state_dict(torch.load(model_path, **kw))
 
         elif(self.model=='net'): # pretrained network
             assert not self.spatial, 'spatial argument not supported yet for uncalibrated networks'
-            self.net = networks.PNet(use_gpu=use_gpu,pnet_type=net)
+            net = networks.PNet(use_gpu=use_gpu,pnet_type=net)
             self.is_fake_net = True
         elif(self.model in ['L2','l2']):
-            self.net = networks.L2(use_gpu=use_gpu,colorspace=colorspace) # not really a network, only for testing
+            net = networks.L2(use_gpu=use_gpu,colorspace=colorspace) # not really a network, only for testing
             self.model_name = 'L2'
         elif(self.model in ['DSSIM','dssim','SSIM','ssim']):
-            self.net = networks.DSSIM(use_gpu=use_gpu,colorspace=colorspace)
+            net = networks.DSSIM(use_gpu=use_gpu,colorspace=colorspace)
             self.model_name = 'SSIM'
         else:
             raise ValueError("Model [%s] not recognized." % self.model)
 
+        self.add_module('net', net)
         self.parameters = list(self.net.parameters())
 
         if self.is_train: # training mode
@@ -93,9 +110,9 @@ class DistModel(BaseModel):
 
     def forward_pair(self,in1,in2,retPerLayer=False):
         if(retPerLayer):
-            return self.net.forward(in1,in2, retPerLayer=True)
+            return self.net(in1,in2, retPerLayer=True)
         else:
-            return self.net.forward(in1,in2)
+            return self.net(in1,in2)
 
     def forward(self, in0, in1, retNumpy=True):
         ''' Function computes the distance between image patches in0 and in1

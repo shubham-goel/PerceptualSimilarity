@@ -1,13 +1,14 @@
 import os
 import torch
-from ..util import util as util
+from  ..util import util
+import torch
 from torch.autograd import Variable
 from pdb import set_trace as st
 from IPython import embed
 
-class BaseModel():
+class BaseModel(torch.nn.Module):
     def __init__(self):
-        pass;
+        super().__init__()
         
     def name(self):
         return 'BaseModel'
